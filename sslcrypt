@@ -1,8 +1,24 @@
 #!/bin/bash
-#       Script which makes simple use of openssl suite to encrypt files
-#       Both symmetric and asymmetric encryption are used, you can choose either of them
+#	Script which makes simple use of openssl suite to encrypt & decrypt files
+#	Both symmetric and asymmetric encryption are used, you can choose either of them
 #
-#       @author: Daniele Capponi
+#	@author: Daniele Capponi
+
+################################### MAIN VARIABILES ############################
+N="\e[0m"
+B="\e[1m"
+Bl="\e[36m"
+U="\e[4m"
+R='\e[31m'
+G='\e[32m'
+Y='\e[33m'
+
+prikey="privateKey.pem"
+pubkey="publicKey.crt"
+
+ext=".encx"
+choice=0
+path=$(pwd)
 
 
 
@@ -11,55 +27,68 @@
 # Creates a self signed certificate and its private key. Encryption and Decryption is based
 # on these two keys
 rsa_cryptography() {
-        choice=0
+	choice=0
+	rsa_help
     while [[ $choice -eq 0 ]]; do
-        echo "[1] Encrypt RSA"
-        echo "[2] Decrypt RSA"
-        echo "[3] New RSA key pair"
-        echo -ne "> "
+		echo -ne "sslcrypt-rsa> "
         read userIN
-        echo ""
-        if   [[ $userIN -eq 1 || $userIN == 'enc' || $userIN == 'encrypt' || $userIN == 'e' ]]; then choice=1
-        elif [[ $userIN -eq 2 || $userIN == 'dec' || $userIN == 'decrypt' || $userIN == 'd' ]]; then choice=2
-        elif [[ $userIN -eq 3 || $userIN == 'rsa' || $userIN == 'RSA' ]]; then choice=3
+        if   [[ $userIN == 'enc' || $userIN == 'encrypt' || $userIN == 'e' ]]; then choice=1
+        elif [[ $userIN == 'dec' || $userIN == 'decrypt' || $userIN == 'd' ]]; then choice=2
+		elif [[ $userIN == 'n' || $userIN == 'new' || $userIN == 'gen' ]]; then choice=3
+		elif [[ $userIN == 'help' ]]; then rsa_help
+		elif [[ $userIN == 'exit' || $userIN == 'quit' ]]; then choiche=4
+		else $userIN
         fi
     done
 
     if   [[ $choice -eq 3 ]]; then
-        echo "Generating new pair of public/private RSA key..."
-        openssl req -x509 -sha256 -nodes -days 10000 -newkey rsa:4096 -keyout privateKey.pem -out publicKey.crt -subj '/' 2>/dev/null && \
-        echo -e "${path}/publicKey.crt  ::  ${path}/privateKey.pem" || \
-        echo -e "Errors encountered during RSA generation process"
+        echo -e "${G}[+]${N} Generating new pair of public/private RSA key..."
+        openssl req -x509 -sha256 -nodes -days 10000 -newkey rsa:4096 -keyout $prikey -out $pubkey -subj '/' 2>/dev/null && \
+        echo -e "${G}[+]${N} ${path}/${pubkey}  -  ${path}/${prikey}" || \
+        echo -e "${R}[-]${N} Errors encountered during RSA generation process"
     elif [[ $choice -eq 1 ]]; then
-        echo -ne "File to encrypt: "
+        echo -ne ">>> File to encrypt: "
         read ifile
-        if [[ ! -f $ifile ]]; then echo "${ifile}: File not found"; exit 1; fi
-        echo -ne "Your public key: "
+        if [[ ! -f $ifile ]]; then
+			echo -e "${Y}[-]${N} ${ifile}: File not found"
+			exit 1
+		fi
+        echo -ne ">>> Your public key: "
         read ikey
-        if [[ ! -f $ikey ]]; then echo "${ifile}: File not found"; exit 1; fi
-        echo -e "Encrypting $ifile with $ikey public key"
-        openssl smime -encrypt -aes256 -in $ifile -binary -outform DEM -out ${ifile}.encx $ikey && \
-        echo -e ">> ${ifile}.encx" || \
-        echo -e "Errors encountered during encryption"
+        if [[ ! -f $ikey ]]; then
+			echo -e "${Y}[-]${N} ${ifile}: File not found"
+			exit 1
+		fi
+        echo -e "${G}[+]${N} Encrypting $ifile with $ikey public key"
+        openssl smime -encrypt -aes256 -in $ifile -binary -outform DEM -out ${ifile}${ext} $ikey && \
+        echo -e "    ${G}>>${N} ${ifile}${ext}" || \
+		echo -e "${R}[-]${N} Errors encountered during encryption"
     elif [[ $choice -eq 2 ]]; then
-        echo -ne "File to decrypt: "
+        echo -ne ">>> File to decrypt: "
         read ifile
-        if [[ ! -f $ifile ]]; then echo "${ifile}: File not found"; exit 1; fi
-        echo -ne "Your private key: "
+        if [[ ! -f $ifile ]]; then
+			echo -e "${Y}[-]${N} ${ifile}: File not found"
+			exit 1
+		fi
+        echo -ne ">>> Your private key: "
         read ikey
-        if [[ ! -f $ikey ]]; then echo "${ifile}: File not found"; exit 1; fi
-            if [[ $ifile =~ ".encx" ]]; then
-                ofile=$(echo -ne ${ifile} |sed "s^${ext}^^g" );
-            else
-                ofile=$(echo -e "${ifile}_decrypted")
-            fi
-        echo -e "Decrypting $ifile with $ikey private key"
+        if [[ ! -f $ikey ]]; then
+			echo -e "${Y}[-]${N} ${ifile}: File not found"
+			exit 1
+		fi
+		if [[ $ifile =~ ".encx" ]]; then
+			ofile=$(echo $ifile | cut -d "." -f1-$(echo $ifile  | awk -F"." '{print NF-1}'))
+		else
+			ofile=$(echo "${ifile}_decrypted")
+		fi
+        echo -e "${G}[+]${N} Decrypting $ifile with $ikey private key"
         openssl smime -decrypt -in $ifile -binary -inform DEM -inkey $ikey -out ${ofile} && \
-        echo -e ">> ${ofile}" || \
-        echo -e "Errors encountered during encryption"
+        echo -e "    ${G}>>${N} ${ofile}" || \
+		echo -e "${R}[-]${N} Errors encountered during decryption"
+	elif [[ $choice -eq 4 ]]; then
+		exit 0
     fi
 }
-
 
 
 
@@ -67,71 +96,93 @@ rsa_cryptography() {
 # Function for standard cryptography.
 # Ask the user a password and the RSA key is automatically calculated.
 std_cryptography() {
-        if [[ -f $2 ]]; then
-        ifile=$2
-        echo -ne "Password: "
-        read pass
-            if [[ -f $pass ]]; then pass=$(cat $pass); fi
-        else
-        echo -ne "Input file: "
-        read ifile
-        echo -ne "Password: "
-        read pass
-        if [[ -f $pass ]]; then pass=$(cat $pass); fi
-        fi
+	if [[ -f $1 ]]; then
+    	ifile=$1
+    	echo -ne ">>> Password: "
+    	read pass
+   		if [[ -f $pass ]]; then pass=$(cat $pass); fi
+	else
+    	echo -ne ">>> Input file: "
+    	read ifile
+		if [[ ! -f $ifile ]]; then
+			echo -e "${Y}[-]${N} ${ifile}: File not found"
+			exit 1
+		fi
+    	echo -ne ">>> Password: "
+    	read pass
+    	if [[ -f $pass ]]; then pass=$(cat $pass); fi
+	fi
 
-        if [[ $choice -eq 1 ]]; then
-        ofile=${ifile}${ext}
-        openssl enc -k ${pass} -aes-256-cbc -base64 -e -in ${ifile} -out ${ofile} 2>/dev/null && \
-        echo "${ifile} encrypted >> ${ofile}" && \
-        rm ${ifile}
-        elif [[ $choice -eq 2 ]]; then
-            ofile=$(echo -ne ${ifile} |sed "s^${ext}^^g")
-        openssl enc -k ${pass} -aes-256-cbc -base64 -d -in ${ifile} -out ${ofile} 2>/dev/null && \
-            echo "${ifile} decrypted >> ${ofile}" && \
-        rm ${ifile}
-        fi
+	if [[ $choice -eq 1 ]]; then
+    	ofile=${ifile}${ext}
+    	openssl enc -k ${pass} -aes-256-cbc -base64 -e -in ${ifile} -out ${ofile} 2>/dev/null && \
+    	echo -e "${G}[+]${N} ${ifile} ${G}encrypted${N} >> ${ofile}" && \
+    	rm ${ifile}
+	elif [[ $choice -eq 2 ]]; then
+		if [[ $ifile =~ ".encx" ]]; then
+			ofile=$(echo $ifile | cut -d "." -f1-$(echo $ifile  | awk -F"." '{print NF-1}'))
+		else
+			ofile=$(echo "${ifile}_decrypted")
+		fi
+    	openssl enc -k ${pass} -aes-256-cbc -base64 -d -in ${ifile} -out ${ofile} 2>/dev/null && \
+	    echo -e "${G}[+]${N} ${ifile} ${G}decrypted${N} >> ${ofile}" && \
+    	rm ${ifile}
+	fi
 }
 
 
 
+rsa_help() {
+	echo -e "e|enc|encrypt > ${G}Encrypt${N}"
+	echo -e "d|dec|decrypt > ${G}Decrypt${N}"
+	echo -e "n|new|gen     > ${G}New Public/Private Key Pair${N}"
+	echo -e "help"
+	echo -e "exit"
+	echo ""
+}
+
+
+std_help() {
+	echo -e "e|enc|encrypt > ${G}Encrypt${N}"
+	echo -e "d|dec|decrypt > ${G}Decrypt${N}"
+	echo -e "r|rsa|RSA     > ${G}RSA Asymmetric${N}"
+	echo -e "help"
+	echo -e "exit"
+	echo ""
+}
 
 
 
 ###################################### MAIN SECTION #########################################
-ext=".encx"
-choice=0
-path=$(pwd)
-
+which openssl 1>/dev/null || echo "You must have openssl on your system -> apt install openssl"
 
 if [[ $1 == 'enc' || $1 == 'encrypt' || $1 == '-e' || $1 == '--encrypt' ]]; then
-        choice=1
-        echo "ENCRYPTING FILE READY"
+	choice=1
+	echo -e "${G}[+]${N} ENCRYPTING FILE READY"
 elif [[ $1 == 'dec' || $1 == 'decrypt' || $1 == '-d' || $1 == '--decrypt' ]]; then
-        choice=2
-        echo "DECRYPTING FILE READY"
+	choice=2
+	echo -e "${G}[+]${N} DECRYPTING FILE READY"
 elif [[ $1 == 'rsa' || $1 == 'RSA' ]]; then
-        choice=3
+	choice=3
 fi
 
+if   [[ -f $2 && $choice -eq 1 ]]; then
+	std_cryptography $2
+elif [[ -f $2 && $choice -eq 2 ]]; then
+	std_cryptography $2
+elif [[ $choice -eq 3 ]]; then
+	rsa_cryptography
+fi
 
+[[ $choice == 0 ]] && std_help
 while [[ $choice -eq 0 ]]; do
-        echo "[1] Encrypt"
-        echo "[2] Decrypt"
-        echo "[3] RSA"
-        echo -ne "  > "
-        read userIN
-        echo ""
-        if   [[ $userIN -eq 1 || $userIN == 'enc' || $userIN == 'encrypt' || $userIN == 'e' ]]; then choice=1
-        elif [[ $userIN -eq 2 || $userIN == 'dec' || $userIN == 'decrypt' || $userIN == 'd' ]]; then choice=2
-        elif [[ $userIN -eq 3 || $userIN == 'rsa' || $userIN == 'RSA' ]]; then choice=3
-        fi
+	echo -ne "sslcrypt> "
+	read userIN
+	if   [[ $userIN == 'enc' || $userIN == 'encrypt' || $userIN == 'e' ]]; then choice=1 std_cryptography
+	elif [[ $userIN == 'dec' || $userIN == 'decrypt' || $userIN == 'd' ]]; then choice=2; std_cryptography
+	elif [[ $userIN == 'r'   || $userIN == 'rsa' || $userIN == 'RSA' ]]; then choice=3; rsa_cryptography
+	elif [[ $userIN == 'help' ]]; then std_help
+	elif [[ $userIN == 'exit' || $userIN == 'quit' ]]; then choice=4
+	else $userIN
+	fi
 done
-
-if [[ $choice -eq 3 ]]; then
-        rsa_cryptography
-        exit 0
-else
-        std_cryptography
-        exit 0
-fi
